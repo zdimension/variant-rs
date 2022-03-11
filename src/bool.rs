@@ -16,11 +16,11 @@ impl From<&mut i16> for &'static mut ComBool
     }
 }
 
-impl Into<bool> for ComBool
+impl From<ComBool> for bool
 {
-    fn into(self) -> bool
+    fn from(value: ComBool) -> bool
     {
-        self != ComBool::False
+        value != ComBool::False
     }
 }
 

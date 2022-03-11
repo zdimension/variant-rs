@@ -14,7 +14,7 @@ impl <T: 'static> PartialEq for PtrWrapper<T>
 {
     fn eq(&self, other: &PtrWrapper<T>) -> bool
     {
-        self.0 as *const T == other.0 as *const T
+        std::ptr::eq(self.0, other.0)
     }
 }
 
