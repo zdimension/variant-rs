@@ -1,11 +1,11 @@
 [package]
-name = "sylvie"
+name = "variant-rs"
 description = "VARIANT support for Rust. Clean, idiomatic handling of WinAPI/COM results."
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
 authors = ["Tom Niget <niget.tom@gmail.com>"]
-repository = "https://github.com/zdimension/sylvie"
+repository = "https://github.com/zdimension/variant-rs"
 categories = ["data-structures"]
 keywords = ["com", "windows", "variant", "winapi"]
 
