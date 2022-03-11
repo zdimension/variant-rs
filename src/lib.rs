@@ -1,20 +1,21 @@
-mod bool;
-mod ptr_wrapper;
-
-use enumn::N;
 use std::fmt::Debug;
 use std::ops::Add;
-use chrono::{Duration, NaiveDate, NaiveDateTime, NaiveTime};
 
+use chrono::{Duration, NaiveDate, NaiveDateTime, NaiveTime};
+use enumn::N;
 use rust_decimal::Decimal;
 use winapi::shared::ntdef::HRESULT;
 use winapi::shared::wtypes::VARTYPE;
 use winapi::um::oaidl::{IDispatch, VARIANT};
 use winapi::um::unknwnbase::IUnknown;
+
 use VariantType::*;
+
 use crate::bool::ComBool;
 use crate::ptr_wrapper::PtrWrapper;
 
+mod bool;
+mod ptr_wrapper;
 
 #[derive(Debug, PartialEq)]
 pub enum Variant
@@ -54,7 +55,7 @@ pub enum Variant
     ErrorRef(&'static mut HRESULT),
     Unknown(PtrWrapper<IUnknown>),
     VariantRef(PtrWrapper<VARIANT>),
-    Record()
+    Record(),
 }
 
 #[derive(N, Debug, PartialEq)]
@@ -94,7 +95,7 @@ pub enum VariantType
     VT_LPWSTR = 31,
     VT_RECORD = 36,
     VT_INT_PTR = 37,
-    VT_UINT_PTR = 38
+    VT_UINT_PTR = 38,
 }
 
 const VT_BYREF: u16 = 16384;
@@ -150,48 +151,56 @@ macro_rules! vt {
 #[macro_export]
 macro_rules! types
 {
-    ( @vt $t: expr, $val:expr, $is_ref:expr, $res:expr ) => {
-        if $is_ref { Err(VariantConversionError::InvalidReference(VariantType::n($t).unwrap())) }
+    // Direct-only type; custom expression
+    // VT_EMPTY : (Variant::Empty)
+    ( @vt $t: ident, $val:expr, $is_ref:expr, $res:expr ) => {
+        if $is_ref { Err(VariantConversionError::InvalidReference($t)) }
         else { Ok($res) }
     };
 
-    ( @vt $t: expr, $val:expr, $is_ref:expr, @, $atype: ident => ($ares: expr) ) => {
+    // Reference-only type, custom expression
+    // VT_VARIANT : (/, VariantRef => ...)
+    ( @vt $t: ident, $val:expr, $is_ref:expr, /, $atype: ident => ($ares: expr) ) => {
         if $is_ref { Ok(Variant::$atype($ares)) }
-        else { Err(VariantConversionError::InvalidDirect(VariantType::n($t).unwrap())) }
+        else { Err(VariantConversionError::InvalidDirect($t)) }
+    };
+
+    ( @ref $val: expr, $atype: ident, $ares: ident ) => {
+        Variant::$atype((*$val.n3.$ares()).as_mut::<'static>().unwrap().into())
+    };
+
+    ( @ref $val: expr, $atype: ident, $ares: expr ) => {
+        Variant::$atype($ares)
     };
 
     ( @vt $t: expr, $val:expr, $is_ref:expr, $vtype:ident => ($res:expr), $atype: ident => ($ares: expr) ) => {
-        Ok(if $is_ref { Variant::$atype($ares) } else { Variant::$vtype($res) })
+        Ok(if $is_ref { types!(@ref $val, $atype, $ares) } else { Variant::$vtype($res) })
     };
 
     ( @vt $t: expr, $val:expr, $is_ref:expr, $vtype:ident => ($res:expr), $atype: ident => $ares: ident ) => {
-        Ok(if $is_ref { Variant::$atype((*$val.n3.$ares()).as_mut::<'static>().unwrap().into()) } else { Variant::$vtype($res) })
+        Ok(if $is_ref { types!(@ref $val, $atype, $ares) } else { Variant::$vtype($res) })
     };
 
     ( @vt $t: expr, $val:expr, $is_ref:expr, $vtype:ident => $res:ident, $atype: ident => $ares: ident ) => {
-        Ok(if $is_ref { Variant::$atype((*$val.n3.$ares()).as_mut::<'static>().unwrap().into()) } else { Variant::$vtype(*$val.n3.$res()) })
+        Ok(if $is_ref { types!(@ref $val, $atype, $ares) } else { Variant::$vtype(*$val.n3.$res()) })
     };
 
     ( @vt $t: expr, $val:expr, $is_ref:expr, $vtype:ident => $res:ident $op:tt $opexpr:expr, $atype: ident => $ares: ident ) => {
-        Ok(if $is_ref { Variant::$atype((*$val.n3.$ares()).as_mut::<'static>().unwrap().into()) } else { Variant::$vtype(*$val.n3.$res() $op $opexpr) })
+        Ok(if $is_ref { types!(@ref $val, $atype, $ares) } else { Variant::$vtype(*$val.n3.$res() $op $opexpr) })
     };
 
-    ($val:expr, $is_ref:expr, $t:expr, [$( $name:ident : ( $($tts:tt)* ) ),*], [ $( $($pat:ident)|+ => $expr:expr ),*]) => {
+    ($val:expr, $is_ref:expr, $t:expr, [$( $name:ident : ( $($tts:tt)* ) ),*], [ $( $($pat:ident)|+ => $expr:expr ),*], [ $([ $( $u:ident ),* ] => $err:ident),* ]) => {
         match $t
         {
-            $(Some($name) => types!(@vt $t, $val, $is_ref, $($tts)*) ,)*
-            $($(Some($pat))+ => $expr,)*
+            Some(t) => match t
+            {
+                $($name => types!(@vt $name, $val, $is_ref, $($tts)*) ,)*
+                $($($pat => $expr ,)*)*
+                $($($u => Err(VariantConversionError::$err($u)),)*)*
+            },
             None => Err(VariantConversionError::Unknown($val.vt))
         }
-    }
-
-    /*($val:expr, $is_ref:expr, $t:expr, [$( $name:ident : ( $vtype:ident => $res:ident, $atype: ident => $ares: ident ) ),*]) => {
-        match $t
-        {
-            $(Some($name) => Ok(if $is_ref { Variant::$atype((*$val.n3.$ares()).as_mut::<'static>().unwrap().into()) } else { Variant::$vtype(*$val.n3.$res()) }) ,)*
-            None => Err(VariantConversionError::Unknown($val.vt))
-        }
-    }*/
+    };
 }
 
 impl TryInto<Variant> for VARIANT
@@ -208,8 +217,6 @@ impl TryInto<Variant> for VARIANT
             } else {
                 (val.vt, false)
             };
-
-            let var = (val, is_ref, unrefd);
 
             types!(val, is_ref, VariantType::n(unrefd), [
                 VT_EMPTY : (Variant::Empty),
@@ -236,60 +243,21 @@ impl TryInto<Variant> for VARIANT
                 VT_ERROR : (Error => scode, ErrorRef => pscode),
                 VT_DISPATCH : (Variant::Dispatch(val.n3.pdispVal().try_into().unwrap())),
                 VT_UNKNOWN : (Variant::Unknown(val.n3.punkVal().try_into().unwrap())),
-                VT_VARIANT : (@, VariantRef => (PtrWrapper((*val.n3.pvarVal()).as_mut().unwrap())))
+                VT_VARIANT : (/, VariantRef => (PtrWrapper((*val.n3.pvarVal()).as_mut().unwrap())))
             ], [
-
-            ]);
-
-            match VariantType::n(unrefd)
-            {
-                Some(t) => match t
+                VT_BSTR => if is_ref { Err(VariantConversionError::InvalidReference(VT_BSTR)) }
+                else
                 {
-                    VT_BOOL => vt!(var, Bool => boolVal != 0, BoolRef => pboolVal),
-                    VT_I1 => vt!(var, I8  => cVal,  I8Ref  => pcVal),
-                    VT_I2 => vt!(var, I16 => iVal,  I16Ref => piVal),
-                    VT_I4 | VT_INT => vt!(var, I32 => lVal,  I32Ref => plVal),
-                    VT_I8 => vt!(var, I64 => llVal, I64Ref => pllVal),
-                    VT_UI1 => vt!(var, U8  => bVal,   U8Ref  => pbVal),
-                    VT_UI2 => vt!(var, U16 => uiVal,  U16Ref => puiVal),
-                    VT_UI4 | VT_UINT => vt!(var, U32 => ulVal,  U32Ref => pulVal),
-                    VT_UI8 => vt!(var, U64 => ullVal, U64Ref => pullVal),
-                    VT_R4 => vt!(var, F32 => fltVal, F32Ref => pfltVal),
-                    VT_R8 => vt!(var, F64 => dblVal, F64Ref => pdblVal),
-                    VT_CY => vt!(var, Currency => (Decimal::new((*val.n3.cyVal()).int64, 4)), CurrencyRef => (&mut ((*(*val.n3.pcyVal())).int64))),
-                    VT_DATE => Ok(Variant::Date(NaiveDateTime::new(NaiveDate::from_ymd(1899, 12, 30), NaiveTime::from_hms(0, 0, 0))
-                        .add(Duration::milliseconds((*val.n3.date() * 24.0 * 60.0 * 60.0 * 1000.0) as i64)))),
-                    VT_EMPTY => vt!(var, Variant::Empty),
-                    VT_NULL => vt!(var, Variant::Null),
-                    VT_BSTR => if is_ref
-                    {
-                        Err(VariantConversionError::InvalidReference(t))
-                    }
-                    else
-                    {
-                        widestring::U16CString::from_ptr_str(*val.n3.bstrVal()).to_string()
-                            .map(|s| Variant::String(s))
-                            .map_err(|_| VariantConversionError::StringConversionError)
-                    },
-                    VT_ERROR => vt!(var, Error => scode, ErrorRef => pscode),
-                    VT_DISPATCH => vt!(var, Variant::Dispatch(val.n3.pdispVal().try_into().unwrap())),
-                    VT_UNKNOWN => vt!(var, Variant::Unknown(val.n3.punkVal().try_into().unwrap())),
-                    VT_VARIANT => vt!(var, @, VariantRef => (PtrWrapper((*val.n3.pvarVal()).as_mut().unwrap()))),
-                    VT_DECIMAL | VT_RECORD => Err(VariantConversionError::Unimplemented(t)),
-
-                    VT_VOID |
-                    VT_HRESULT |
-                    VT_PTR |
-                    VT_SAFEARRAY |
-                    VT_CARRAY |
-                    VT_USERDEFINED |
-                    VT_LPSTR |
-                    VT_LPWSTR |
-                    VT_INT_PTR |
-                    VT_UINT_PTR => Err(VariantConversionError::TypeDescOnly(t)),
+                    widestring::U16CString::from_ptr_str(*val.n3.bstrVal()).to_string()
+                        .map(|s| Variant::String(s))
+                        .map_err(|_| VariantConversionError::StringConversionError)
                 },
-                None => Err(VariantConversionError::Unknown(val.vt))
-            }
+                VT_DATE => Ok(Variant::Date(NaiveDateTime::new(NaiveDate::from_ymd(1899, 12, 30), NaiveTime::from_hms(0, 0, 0))
+                        .add(Duration::milliseconds((*val.n3.date() * 24.0 * 60.0 * 60.0 * 1000.0) as i64))))
+            ], [
+                [VT_DECIMAL, VT_RECORD] => Unimplemented,
+                [VT_VOID, VT_HRESULT, VT_PTR, VT_SAFEARRAY, VT_CARRAY, VT_USERDEFINED, VT_LPSTR, VT_LPWSTR, VT_INT_PTR, VT_UINT_PTR] => TypeDescOnly
+            ])
         }
     }
 }
@@ -297,7 +265,8 @@ impl TryInto<Variant> for VARIANT
 #[cfg(test)]
 mod tests {
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-    use winapi::um::oaidl::{VARIANT};
+    use winapi::um::oaidl::VARIANT;
+
     use crate::{Variant, VariantType};
 
     #[macro_export]
@@ -316,7 +285,5 @@ mod tests {
     fn it_works() {
         assert_eq!(variant!(VT_DATE, date_mut, 5.25),
                    Ok(Variant::Date(NaiveDateTime::new(NaiveDate::from_ymd(1900, 01, 04), NaiveTime::from_hms(6, 0, 0)))));
-
-
     }
 }
