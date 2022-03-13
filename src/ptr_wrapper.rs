@@ -6,7 +6,7 @@ impl <T: 'static> Debug for PtrWrapper<T>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
     {
-        write!(f, "ComIPtr({:p})", self.0)
+        write!(f, "PtrWrapper({:p})", self.0)
     }
 }
 
@@ -27,5 +27,13 @@ impl <T: 'static> TryFrom<&*mut T> for PtrWrapper<T>
         unsafe { ptr.as_mut() }
             .map(|ptr| PtrWrapper(ptr))
             .ok_or(())
+    }
+}
+
+impl <T: 'static> From<PtrWrapper<T>> for *mut T
+{
+    fn from(ptr: PtrWrapper<T>) -> Self
+    {
+        ptr.0
     }
 }

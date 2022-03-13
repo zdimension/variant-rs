@@ -100,3 +100,11 @@ pub enum VariantType
 }
 
 pub const VT_BYREF: u16 = 16384;
+
+impl VariantType
+{
+    pub fn byref(self) -> u16
+    {
+        self as u16 | VT_BYREF
+    }
+}

@@ -1,11 +1,19 @@
-use crate::{Variant, VariantType, VT_BYREF, PtrWrapper};
-use winapi::shared::wtypes::VARTYPE;
+use crate::{Variant, VariantType, VT_BYREF, PtrWrapper, variant, ComBool};
+use winapi::shared::wtypes::{VARTYPE, CY};
 use winapi::um::oaidl::VARIANT;
 use rust_decimal::Decimal;
 use chrono::{Duration, NaiveDate, NaiveDateTime, NaiveTime};
-use std::ops::Add;
+use std::ops::{Add, Sub};
 use std::string::FromUtf16Error;
 use crate::VariantType::*;
+use crate::Variant::*;
+
+macro_rules! com_epoch
+{
+    () => {
+        NaiveDateTime::new(NaiveDate::from_ymd(1899, 12, 30), NaiveTime::from_hms(0, 0, 0))
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum VariantConversionError
@@ -138,18 +146,19 @@ impl TryInto<Variant> for VARIANT
                     Currency => (Ok(Decimal::new((*val.n3.cyVal()).int64, 4))),
                     CurrencyRef => (Ok(&mut ((**val.n3.pcyVal()).int64)))),
 
-                VT_ERROR : (Error => scode, ErrorRef => pscode),
-                VT_DISPATCH : (Dispatch => (val.n3.pdispVal().try_into()), /),
-                VT_UNKNOWN : (Unknown => (val.n3.punkVal().try_into()), /),
-
-                VT_VARIANT : (/, VariantRef => ((*val.n3.pvarVal()).as_mut().map(PtrWrapper).ok_or(()))),
-
                 VT_DATE : (
-                    Date => (Ok(NaiveDateTime::new(NaiveDate::from_ymd(1899, 12, 30), NaiveTime::from_hms(0, 0, 0))
+                    Date => (Ok(com_epoch!()
                         .add(Duration::milliseconds((*val.n3.date() * 24.0 * 60.0 * 60.0 * 1000.0) as i64)))),
                     DateRef => (Ok(&mut **val.n3.pdate()))),
 
-                VT_BSTR : (String => (widestring::U16CString::from_ptr_str(*val.n3.bstrVal()).to_string()), /)
+                VT_BSTR : (String => (widestring::U16CString::from_ptr_str(*val.n3.bstrVal()).to_string()), /),
+
+                VT_DISPATCH : (Dispatch => (val.n3.pdispVal().try_into()), /),
+                VT_UNKNOWN : (Unknown => (val.n3.punkVal().try_into()), /),
+
+                VT_ERROR : (Error => scode, ErrorRef => pscode),
+
+                VT_VARIANT : (/, VariantRef => ((*val.n3.pvarVal()).as_mut().map(PtrWrapper).ok_or(())))
             ], [
 
             ], [
@@ -162,6 +171,71 @@ impl TryInto<Variant> for VARIANT
                     VT_PTR, VT_INT_PTR, VT_UINT_PTR
                 ] => TypeDescOnly
             ])
+        }
+    }
+}
+
+impl TryInto<VARIANT> for Variant
+{
+    type Error = VariantConversionError;
+
+    fn try_into(self) -> Result<VARIANT, VariantConversionError>
+    {
+        match self
+        {
+            Empty => Ok(variant!(VT_EMPTY)),
+            Null => Ok(variant!(VT_NULL)),
+
+            Bool(b) => Ok(variant!(VT_BOOL, boolVal_mut, ComBool::from(b) as i16)),
+            BoolRef(b) => Ok(variant!(VT_BOOL, pboolVal_mut, b as *mut ComBool as *mut i16)),
+
+            I8(i) => Ok(variant!(VT_I1, cVal_mut, i)),
+            I8Ref(i) => Ok(variant!(VT_I1.byref(), pcVal_mut, i)),
+            I16(i) => Ok(variant!(VT_I2, iVal_mut, i)),
+            I16Ref(i) => Ok(variant!(VT_I2.byref(), piVal_mut, i)),
+            I32(i) => Ok(variant!(VT_I4, lVal_mut, i)),
+            I32Ref(i) => Ok(variant!(VT_I4.byref(), plVal_mut, i)),
+            I64(i) => Ok(variant!(VT_I8, llVal_mut, i)),
+            I64Ref(i) => Ok(variant!(VT_I8.byref(), pllVal_mut, i)),
+
+            U8(i) => Ok(variant!(VT_UI1, bVal_mut, i)),
+            U8Ref(i) => Ok(variant!(VT_UI1.byref(), pbVal_mut, i)),
+            U16(i) => Ok(variant!(VT_UI2, uiVal_mut, i)),
+            U16Ref(i) => Ok(variant!(VT_UI2.byref(), puiVal_mut, i)),
+            U32(i) => Ok(variant!(VT_UI4, ulVal_mut, i)),
+            U32Ref(i) => Ok(variant!(VT_UI4.byref(), pulVal_mut, i)),
+            U64(i) => Ok(variant!(VT_UI8, ullVal_mut, i)),
+            U64Ref(i) => Ok(variant!(VT_UI8.byref(), pullVal_mut, i)),
+
+            F32(f) => Ok(variant!(VT_R4, fltVal_mut, f)),
+            F32Ref(f) => Ok(variant!(VT_R4.byref(), pfltVal_mut, f)),
+            F64(f) => Ok(variant!(VT_R8, dblVal_mut, f)),
+            F64Ref(f) => Ok(variant!(VT_R8.byref(), pdblVal_mut, f)),
+
+            Currency(d) =>
+                {
+                    let mut g = d;
+                    g.rescale(4);
+                    Ok(variant!(VT_CY, cyVal_mut, CY { int64: g.mantissa() as i64 }))
+                }
+            CurrencyRef(r) => Ok(variant!(VT_CY, pcyVal_mut, r as *mut i64 as *mut CY)),
+
+            Date(d) => Ok(variant!(VT_DATE, date_mut, d.sub(com_epoch!())
+                .num_milliseconds() as f64 / 24.0 / 60.0 / 60.0 / 1000.0)),
+            DateRef(d) => Ok(variant!(VT_DATE.byref(), pdate_mut, d)),
+
+            String(s) => Ok(variant!(VT_BSTR, bstrVal_mut, widestring::U16CString::from_str_truncate(s).into_raw())),
+            StringRef(s) => Ok(variant!(VT_BSTR.byref(), pbstrVal_mut, &mut (*s as *mut u16) as *mut *mut u16)),
+
+            Dispatch(ptr) => Ok(variant!(VT_DISPATCH, pdispVal_mut, ptr.into())),
+            Unknown(ptr) => Ok(variant!(VT_UNKNOWN, punkVal_mut, ptr.into())),
+
+            Error(code) => Ok(variant!(VT_ERROR, scode_mut, code)),
+            ErrorRef(code) => Ok(variant!(VT_ERROR.byref(), pscode_mut, code)),
+
+            VariantRef(ptr) => Ok(variant!(VT_VARIANT.byref(), pvarVal_mut, ptr.into())),
+
+            _ => Err(VariantConversionError::GenericConversionError),
         }
     }
 }
