@@ -1,8 +1,8 @@
 use crate::{Variant, VariantType, VT_BYREF, PtrWrapper, variant, ComBool};
-use winapi::shared::wtypes::{VARTYPE, CY};
+use winapi::shared::wtypes::VARTYPE;
 use winapi::um::oaidl::VARIANT;
-use rust_decimal::Decimal;
 use std::string::FromUtf16Error;
+use crate::com_types::currency::ComCurrency;
 use crate::VariantType::*;
 use crate::Variant::*;
 use crate::com_types::date::ComDate;
@@ -136,12 +136,12 @@ impl TryInto<Variant> for VARIANT
                 VT_R8 : (F64 => dblVal, F64Ref => pdblVal),
 
                 VT_CY : (
-                    Currency => (Ok(Decimal::new((*val.n3.cyVal()).int64, 4))),
-                    CurrencyRef => (Ok(&mut ((**val.n3.pcyVal()).int64)))),
+                    Currency => (Ok(ComCurrency::from(*val.n3.cyVal()).into())),
+                    CurrencyRef => (Ok(<&mut ComCurrency>::from(*val.n3.pcyVal())))),
 
                 VT_DATE : (
                     Date => (Ok(ComDate(*val.n3.date()).into())),
-                    DateRef => (Ok(&mut *(*val.n3.pdate() as *mut ComDate)))),
+                    DateRef => (Ok(<&mut ComDate>::from(*val.n3.pdate())))),
 
                 VT_BSTR : (String => (ComString(*val.n3.bstrVal()).try_into()), /),
 
@@ -150,7 +150,7 @@ impl TryInto<Variant> for VARIANT
 
                 VT_ERROR : (Error => scode, ErrorRef => pscode),
 
-                VT_VARIANT : (/, VariantRef => ((*val.n3.pvarVal()).as_mut().map(PtrWrapper).ok_or(())))
+                VT_VARIANT : (/, VariantRef => (PtrWrapper::try_from(val.n3.pvarVal())))
             ], [
 
             ], [
@@ -204,19 +204,14 @@ impl TryInto<VARIANT> for Variant
             F64(f) => Ok(variant!(VT_R8, dblVal_mut, f)),
             F64Ref(f) => Ok(variant!(VT_R8.byref(), pdblVal_mut, f)),
 
-            Currency(d) =>
-                {
-                    let mut g = d;
-                    g.rescale(4);
-                    Ok(variant!(VT_CY, cyVal_mut, CY { int64: g.mantissa() as i64 }))
-                }
-            CurrencyRef(r) => Ok(variant!(VT_CY, pcyVal_mut, r as *mut i64 as *mut CY)),
+            Currency(d) => Ok(variant!(VT_CY, cyVal_mut, ComCurrency::from(d).into())),
+            CurrencyRef(r) => Ok(variant!(VT_CY, pcyVal_mut, r.as_mut_ptr())),
 
             Date(d) => Ok(variant!(VT_DATE, date_mut, ComDate::from(d).0)),
-            DateRef(d) => Ok(variant!(VT_DATE.byref(), pdate_mut, &mut d.0 as *mut f64)),
+            DateRef(d) => Ok(variant!(VT_DATE.byref(), pdate_mut, d.as_mut_ptr())),
 
             String(s) => ComString::try_from(s).map(|s| variant!(VT_BSTR, bstrVal_mut, s.0)).map_err(|_| VariantConversionError::StringConversionError),
-            StringRef(s) => Ok(variant!(VT_BSTR.byref(), pbstrVal_mut, &mut (s.0 as *mut u16) as *mut *mut u16)),
+            StringRef(s) => Ok(variant!(VT_BSTR.byref(), pbstrVal_mut, s.as_mut_ptr())),
 
             Dispatch(ptr) => Ok(variant!(VT_DISPATCH, pdispVal_mut, ptr.into())),
             Unknown(ptr) => Ok(variant!(VT_UNKNOWN, punkVal_mut, ptr.into())),

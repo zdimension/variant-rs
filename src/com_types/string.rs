@@ -48,3 +48,11 @@ impl TryFrom<ComString> for String
         unsafe { widestring::U16CString::from_ptr_str(s.0).to_string() }
     }
 }
+
+impl ComString
+{
+    pub fn as_mut_ptr(&mut self) -> *mut *mut u16
+    {
+        &mut self.0
+    }
+}

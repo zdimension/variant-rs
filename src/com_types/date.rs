@@ -21,7 +21,7 @@ impl Debug for ComDate
 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
     {
-        write!(f, "ComString({}, {})", self.0, self)
+        write!(f, "ComDate({:?}, {})", self.0, self)
     }
 }
 
@@ -43,5 +43,21 @@ impl From<ComDate> for NaiveDateTime
     fn from(date: ComDate) -> Self
     {
         com_epoch!() + Duration::milliseconds((date.0 * 24.0 * 60.0 * 60.0 * 1000.0) as i64)
+    }
+}
+
+impl From<*mut f64> for &mut ComDate
+{
+    fn from(ptr: *mut f64) -> Self
+    {
+        unsafe { &mut *(ptr as *mut ComDate) }
+    }
+}
+
+impl ComDate
+{
+    pub fn as_mut_ptr(&mut self) -> *mut f64
+    {
+        (&mut self.0) as *mut f64
     }
 }

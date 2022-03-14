@@ -5,6 +5,7 @@ use winapi::um::oaidl::{IDispatch, VARIANT};
 use crate::{ComBool, PtrWrapper};
 use winapi::um::unknwnbase::IUnknown;
 use enumn::N;
+use crate::com_types::currency::ComCurrency;
 use crate::com_types::date::ComDate;
 use crate::com_types::string::ComString;
 
@@ -42,7 +43,7 @@ pub enum Variant
     F64Ref(&'static mut f64),
 
     Currency(Decimal),
-    CurrencyRef(&'static mut i64),
+    CurrencyRef(&'static mut ComCurrency),
 
     Date(NaiveDateTime),
     DateRef(&'static mut ComDate),
