@@ -5,6 +5,8 @@ use winapi::um::oaidl::{IDispatch, VARIANT};
 use crate::{ComBool, PtrWrapper};
 use winapi::um::unknwnbase::IUnknown;
 use enumn::N;
+use crate::com_types::date::ComDate;
+use crate::com_types::string::ComString;
 
 #[derive(Debug, PartialEq)]
 #[allow(clippy::enum_variant_names)]
@@ -43,10 +45,10 @@ pub enum Variant
     CurrencyRef(&'static mut i64),
 
     Date(NaiveDateTime),
-    DateRef(&'static mut f64),
+    DateRef(&'static mut ComDate),
 
     String(String),
-    StringRef(&'static mut &'static mut u16),
+    StringRef(&'static mut ComString),
 
     Dispatch(PtrWrapper<IDispatch>),
     Unknown(PtrWrapper<IUnknown>),

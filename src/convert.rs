@@ -2,18 +2,11 @@ use crate::{Variant, VariantType, VT_BYREF, PtrWrapper, variant, ComBool};
 use winapi::shared::wtypes::{VARTYPE, CY};
 use winapi::um::oaidl::VARIANT;
 use rust_decimal::Decimal;
-use chrono::{Duration, NaiveDate, NaiveDateTime, NaiveTime};
-use std::ops::{Add, Sub};
 use std::string::FromUtf16Error;
 use crate::VariantType::*;
 use crate::Variant::*;
-
-macro_rules! com_epoch
-{
-    () => {
-        NaiveDateTime::new(NaiveDate::from_ymd(1899, 12, 30), NaiveTime::from_hms(0, 0, 0))
-    }
-}
+use crate::com_types::date::ComDate;
+use crate::com_types::string::ComString;
 
 #[derive(Debug, PartialEq)]
 pub enum VariantConversionError
@@ -147,11 +140,10 @@ impl TryInto<Variant> for VARIANT
                     CurrencyRef => (Ok(&mut ((**val.n3.pcyVal()).int64)))),
 
                 VT_DATE : (
-                    Date => (Ok(com_epoch!()
-                        .add(Duration::milliseconds((*val.n3.date() * 24.0 * 60.0 * 60.0 * 1000.0) as i64)))),
-                    DateRef => (Ok(&mut **val.n3.pdate()))),
+                    Date => (Ok(ComDate(*val.n3.date()).into())),
+                    DateRef => (Ok(&mut *(*val.n3.pdate() as *mut ComDate)))),
 
-                VT_BSTR : (String => (widestring::U16CString::from_ptr_str(*val.n3.bstrVal()).to_string()), /),
+                VT_BSTR : (String => (ComString(*val.n3.bstrVal()).try_into()), /),
 
                 VT_DISPATCH : (Dispatch => (val.n3.pdispVal().try_into()), /),
                 VT_UNKNOWN : (Unknown => (val.n3.punkVal().try_into()), /),
@@ -220,12 +212,11 @@ impl TryInto<VARIANT> for Variant
                 }
             CurrencyRef(r) => Ok(variant!(VT_CY, pcyVal_mut, r as *mut i64 as *mut CY)),
 
-            Date(d) => Ok(variant!(VT_DATE, date_mut, d.sub(com_epoch!())
-                .num_milliseconds() as f64 / 24.0 / 60.0 / 60.0 / 1000.0)),
-            DateRef(d) => Ok(variant!(VT_DATE.byref(), pdate_mut, d)),
+            Date(d) => Ok(variant!(VT_DATE, date_mut, ComDate::from(d).0)),
+            DateRef(d) => Ok(variant!(VT_DATE.byref(), pdate_mut, &mut d.0 as *mut f64)),
 
-            String(s) => Ok(variant!(VT_BSTR, bstrVal_mut, widestring::U16CString::from_str_truncate(s).into_raw())),
-            StringRef(s) => Ok(variant!(VT_BSTR.byref(), pbstrVal_mut, &mut (*s as *mut u16) as *mut *mut u16)),
+            String(s) => ComString::try_from(s).map(|s| variant!(VT_BSTR, bstrVal_mut, s.0)).map_err(|_| VariantConversionError::StringConversionError),
+            StringRef(s) => Ok(variant!(VT_BSTR.byref(), pbstrVal_mut, &mut (s.0 as *mut u16) as *mut *mut u16)),
 
             Dispatch(ptr) => Ok(variant!(VT_DISPATCH, pdispVal_mut, ptr.into())),
             Unknown(ptr) => Ok(variant!(VT_UNKNOWN, punkVal_mut, ptr.into())),

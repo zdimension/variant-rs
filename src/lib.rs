@@ -1,16 +1,14 @@
 #![allow(unused_unsafe)] // rustc bug #94912
 
 use crate::variant::*;
-use crate::bool::ComBool;
-use crate::ptr_wrapper::PtrWrapper;
+use crate::com_types::bool::ComBool;
+use crate::com_types::ptr_wrapper::PtrWrapper;
 
-mod bool;
-mod ptr_wrapper;
 mod variant;
 mod convert;
+mod com_types;
 
 #[macro_export]
-
 macro_rules! variant
 {
     ( $type: expr ) =>

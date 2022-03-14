@@ -1,6 +1,6 @@
 use enumn::N;
 
-#[derive(N, PartialEq, Debug)]
+#[derive(N, Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(i16)]
 pub enum ComBool
 {
