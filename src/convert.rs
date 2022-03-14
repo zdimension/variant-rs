@@ -7,6 +7,7 @@ use crate::VariantType::*;
 use crate::Variant::*;
 use crate::com_types::date::ComDate;
 use crate::com_types::string::ComString;
+use crate::com_types::decimal::ComDecimal;
 
 #[derive(Debug, PartialEq)]
 pub enum VariantConversionError
@@ -139,6 +140,10 @@ impl TryInto<Variant> for VARIANT
                     Currency => (Ok(ComCurrency::from(*val.n3.cyVal()).into())),
                     CurrencyRef => (Ok(<&mut ComCurrency>::from(*val.n3.pcyVal())))),
 
+                VT_DECIMAL : (
+                    Decimal => (Ok(ComDecimal(*self.n1.decVal()).into())),
+                    DecimalRef => (Ok(<&mut ComDecimal>::from(*val.n3.pdecVal())))),
+
                 VT_DATE : (
                     Date => (Ok(ComDate(*val.n3.date()).into())),
                     DateRef => (Ok(<&mut ComDate>::from(*val.n3.pdate())))),
@@ -154,7 +159,7 @@ impl TryInto<Variant> for VARIANT
             ], [
 
             ], [
-                [VT_DECIMAL, VT_RECORD] => Unimplemented,
+                [VT_RECORD] => Unimplemented,
                 [
                     VT_VOID, VT_HRESULT,
                     VT_SAFEARRAY, VT_CARRAY,
@@ -205,7 +210,10 @@ impl TryInto<VARIANT> for Variant
             F64Ref(f) => Ok(variant!(VT_R8.byref(), pdblVal_mut, f)),
 
             Currency(d) => Ok(variant!(VT_CY, cyVal_mut, ComCurrency::from(d).into())),
-            CurrencyRef(r) => Ok(variant!(VT_CY, pcyVal_mut, r.as_mut_ptr())),
+            CurrencyRef(r) => Ok(variant!(VT_CY.byref(), pcyVal_mut, r.as_mut_ptr())),
+
+            Decimal(d) => Ok(variant!(VT_DECIMAL, (decVal_mut), ComDecimal::from(d).0)),
+            DecimalRef(d) => Ok(variant!(VT_DECIMAL.byref(), pdecVal_mut, d.as_mut_ptr())),
 
             Date(d) => Ok(variant!(VT_DATE, date_mut, ComDate::from(d).0)),
             DateRef(d) => Ok(variant!(VT_DATE.byref(), pdate_mut, d.as_mut_ptr())),

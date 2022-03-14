@@ -28,6 +28,15 @@ macro_rules! variant
             variant
         }
     };
+
+    ( $type: expr, ($field: ident), $val: expr ) =>
+    {
+        unsafe {
+            let mut variant: VARIANT = variant!($type);
+            *variant.n1.$field() = $val;
+            variant
+        }
+    };
 }
 
 #[cfg(test)]
@@ -38,7 +47,7 @@ mod tests
     use rust_decimal_macros::dec;
     use widestring::U16CString;
     use crate::{Variant, VariantType};
-    use winapi::shared::wtypes::CY;
+    use winapi::shared::wtypes::{CY, DECIMAL};
 
     macro_rules! roundtrip
     {
@@ -76,6 +85,9 @@ mod tests
 
     roundtrip!((VT_CY, cyVal_mut, CY { int64: 123456 }),
                    Variant::Currency(dec!(12.3456)));
+
+    roundtrip!((VT_DECIMAL, (decVal_mut), DECIMAL { wReserved: VariantType::VT_DECIMAL as u16, scale: 4, sign: 0, Hi32: 0, Lo64: 123456 }),
+                   Variant::Decimal(dec!(12.3456)));
 
     roundtrip!((VT_DATE, date_mut, 5.25),
                    Variant::Date(

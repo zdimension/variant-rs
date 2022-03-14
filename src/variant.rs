@@ -7,6 +7,7 @@ use winapi::um::unknwnbase::IUnknown;
 use enumn::N;
 use crate::com_types::currency::ComCurrency;
 use crate::com_types::date::ComDate;
+use crate::com_types::decimal::ComDecimal;
 use crate::com_types::string::ComString;
 
 #[derive(Debug, PartialEq)]
@@ -44,6 +45,9 @@ pub enum Variant
 
     Currency(Decimal),
     CurrencyRef(&'static mut ComCurrency),
+
+    Decimal(Decimal),
+    DecimalRef(&'static mut ComDecimal),
 
     Date(NaiveDateTime),
     DateRef(&'static mut ComDate),
