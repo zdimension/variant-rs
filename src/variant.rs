@@ -1,19 +1,46 @@
-use chrono::NaiveDateTime;
-use rust_decimal::Decimal;
-use winapi::shared::ntdef::HRESULT;
-use winapi::um::oaidl::{IDispatch, VARIANT};
-use crate::{ComBool, PtrWrapper};
-use winapi::um::unknwnbase::IUnknown;
-use enumn::N;
-use crate::com_types::currency::ComCurrency;
+use crate::com_types::currency::{ComCurrency, Currency};
 use crate::com_types::date::ComDate;
 use crate::com_types::decimal::ComDecimal;
 use crate::com_types::string::ComString;
+use crate::{ComBool, PtrWrapper};
+use chrono::NaiveDateTime;
+use enumn::N;
+use rust_decimal::Decimal;
+use winapi::shared::ntdef::HRESULT;
+use winapi::um::oaidl::{IDispatch, VARIANT};
+use winapi::um::unknwnbase::IUnknown;
 
-#[derive(Debug, PartialEq)]
-#[allow(clippy::enum_variant_names)]
-pub enum Variant
-{
+macro_rules! variant_enum {
+    (@impl $name:ident) => {};
+
+    (@impl $name:ident (&'static $($type:tt)+)) => {};
+
+    (@impl $name:ident (@@ $type:ty)) => {};
+
+    (@impl $name:ident ($type:ty)) => {
+        impl ToVariant for $type {
+            fn to_variant(self) -> Variant {
+                Variant::$name(self)
+            }
+        }
+    };
+
+    (@enum $($name:ident $(( $(@@)? $( $typ4e:ty )+ ) )?),* $(,)?) => {
+        #[derive(Debug, PartialEq)]
+        #[allow(clippy::enum_variant_names)]
+        pub enum Variant {
+            $($name $(($($typ4e)+))?),*
+        }
+    };
+
+    ($($name:ident $(( $($type:tt)+ ) )?),* $(,)?) => {
+        variant_enum!{@enum $($name $(( $($type)+ ))?),*}
+
+        $(variant_enum!{@impl $name $(($($type)+) )?})*
+    };
+}
+
+variant_enum! {
     Empty,
     Null,
 
@@ -43,7 +70,7 @@ pub enum Variant
     F64(f64),
     F64Ref(&'static mut f64),
 
-    Currency(Decimal),
+    Currency(Currency),
     CurrencyRef(&'static mut ComCurrency),
 
     Decimal(Decimal),
@@ -58,18 +85,45 @@ pub enum Variant
     Dispatch(PtrWrapper<IDispatch>),
     Unknown(PtrWrapper<IUnknown>),
 
-    Error(HRESULT),
+    Error(@@ HRESULT),
     ErrorRef(&'static mut HRESULT),
 
     VariantRef(PtrWrapper<VARIANT>),
 
-    Record(),
+    //Record(),
 }
 
-#[derive(N, Debug, PartialEq)]
+pub trait ToVariant {
+    fn to_variant(self) -> Variant;
+}
+
+impl ToVariant for () {
+    fn to_variant(self) -> Variant {
+        Variant::Null
+    }
+}
+
+impl ToVariant for &str {
+    fn to_variant(self) -> Variant {
+        Variant::String(String::from(self))
+    }
+}
+
+impl<T: Clone + ToVariant> ToVariant for &T {
+    fn to_variant(self) -> Variant {
+        self.clone().to_variant()
+    }
+}
+
+impl<T: ToVariant> From<T> for Variant {
+    fn from(t: T) -> Self {
+        t.to_variant()
+    }
+}
+
+#[derive(N, Debug, PartialEq, Eq, Copy, Clone)]
 #[allow(non_camel_case_types)]
-pub enum VariantType
-{
+pub enum VariantType {
     VT_EMPTY = 0,
     VT_NULL = 1,
     VT_I2 = 2,
@@ -108,10 +162,8 @@ pub enum VariantType
 
 pub const VT_BYREF: u16 = 16384;
 
-impl VariantType
-{
-    pub fn byref(self) -> u16
-    {
+impl VariantType {
+    pub fn byref(self) -> u16 {
         self as u16 | VT_BYREF
     }
 }

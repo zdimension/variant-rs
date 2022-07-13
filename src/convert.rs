@@ -1,17 +1,16 @@
-use crate::{Variant, VariantType, VT_BYREF, PtrWrapper, variant, ComBool};
+use crate::com_types::currency::ComCurrency;
+use crate::com_types::date::ComDate;
+use crate::com_types::decimal::ComDecimal;
+use crate::com_types::string::ComString;
+use crate::Variant::*;
+use crate::VariantType::*;
+use crate::{variant, ComBool, PtrWrapper, Variant, VariantType, VT_BYREF};
+use std::string::FromUtf16Error;
 use winapi::shared::wtypes::VARTYPE;
 use winapi::um::oaidl::VARIANT;
-use std::string::FromUtf16Error;
-use crate::com_types::currency::ComCurrency;
-use crate::VariantType::*;
-use crate::Variant::*;
-use crate::com_types::date::ComDate;
-use crate::com_types::string::ComString;
-use crate::com_types::decimal::ComDecimal;
 
-#[derive(Debug, PartialEq)]
-pub enum VariantConversionError
-{
+#[derive(Debug, PartialEq, Eq)]
+pub enum VariantConversionError {
     /// An error occured while converting the COM String to a Rust string.
     StringConversionError,
     /// An unknown occured while converting the value of the Variant object.
@@ -28,18 +27,14 @@ pub enum VariantConversionError
     UnknownType(VARTYPE),
 }
 
-impl From<FromUtf16Error> for VariantConversionError
-{
-    fn from(_: FromUtf16Error) -> VariantConversionError
-    {
+impl From<FromUtf16Error> for VariantConversionError {
+    fn from(_: FromUtf16Error) -> VariantConversionError {
         VariantConversionError::StringConversionError
     }
 }
 
-impl From<()> for VariantConversionError
-{
-    fn from(_: ()) -> VariantConversionError
-    {
+impl From<()> for VariantConversionError {
+    fn from(_: ()) -> VariantConversionError {
         VariantConversionError::GenericConversionError
     }
 }
@@ -101,12 +96,10 @@ macro_rules! types
     };
 }
 
-impl TryInto<Variant> for VARIANT
-{
+impl TryInto<Variant> for VARIANT {
     type Error = VariantConversionError;
 
-    fn try_into(self) -> Result<Variant, VariantConversionError>
-    {
+    fn try_into(self) -> Result<Variant, VariantConversionError> {
         unsafe {
             let val = self.n1.n2();
 
@@ -172,19 +165,20 @@ impl TryInto<Variant> for VARIANT
     }
 }
 
-impl TryInto<VARIANT> for Variant
-{
+impl TryInto<VARIANT> for Variant {
     type Error = VariantConversionError;
 
-    fn try_into(self) -> Result<VARIANT, VariantConversionError>
-    {
-        match self
-        {
+    fn try_into(self) -> Result<VARIANT, VariantConversionError> {
+        match self {
             Empty => Ok(variant!(VT_EMPTY)),
             Null => Ok(variant!(VT_NULL)),
 
             Bool(b) => Ok(variant!(VT_BOOL, boolVal_mut, ComBool::from(b) as i16)),
-            BoolRef(b) => Ok(variant!(VT_BOOL, pboolVal_mut, b as *mut ComBool as *mut i16)),
+            BoolRef(b) => Ok(variant!(
+                VT_BOOL,
+                pboolVal_mut,
+                b as *mut ComBool as *mut i16
+            )),
 
             I8(i) => Ok(variant!(VT_I1, cVal_mut, i)),
             I8Ref(i) => Ok(variant!(VT_I1.byref(), pcVal_mut, i)),
@@ -218,7 +212,9 @@ impl TryInto<VARIANT> for Variant
             Date(d) => Ok(variant!(VT_DATE, date_mut, ComDate::from(d).0)),
             DateRef(d) => Ok(variant!(VT_DATE.byref(), pdate_mut, d.as_mut_ptr())),
 
-            String(s) => ComString::try_from(s).map(|s| variant!(VT_BSTR, bstrVal_mut, s.0)).map_err(|_| VariantConversionError::StringConversionError),
+            String(s) => ComString::try_from(s)
+                .map(|s| variant!(VT_BSTR, bstrVal_mut, s.0))
+                .map_err(|_| VariantConversionError::StringConversionError),
             StringRef(s) => Ok(variant!(VT_BSTR.byref(), pbstrVal_mut, s.as_mut_ptr())),
 
             Dispatch(ptr) => Ok(variant!(VT_DISPATCH, pdispVal_mut, ptr.into())),
@@ -228,8 +224,7 @@ impl TryInto<VARIANT> for Variant
             ErrorRef(code) => Ok(variant!(VT_ERROR.byref(), pscode_mut, code)),
 
             VariantRef(ptr) => Ok(variant!(VT_VARIANT.byref(), pvarVal_mut, ptr.into())),
-
-            _ => Err(VariantConversionError::GenericConversionError),
+            //_ => Err(VariantConversionError::GenericConversionError),
         }
     }
 }
