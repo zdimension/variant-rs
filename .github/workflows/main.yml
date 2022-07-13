@@ -17,6 +17,8 @@ jobs:
       - uses: Swatinem/rust-cache@v1
 
       - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
 
       - name: cargo test
         uses: actions-rs/cargo@v1
