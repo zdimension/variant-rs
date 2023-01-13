@@ -1,20 +1,24 @@
 #![allow(unused_unsafe)] // rustc bug #94912
+#![doc = include_str!("../README.md")]
 
 use crate::com_types::bool::ComBool;
 use crate::com_types::ptr_wrapper::PtrWrapper;
 use crate::variant::*;
-pub use winapi::um::oaidl::VARIANT;
+
+pub use windows::Win32::System::Com::{VARENUM, VARIANT};
 
 pub mod com_types;
 pub mod convert;
+pub mod dispatch;
 pub mod variant;
 
+#[doc(hidden)]
 #[macro_export]
 macro_rules! variant {
     ( $type: expr ) => {
         unsafe {
             let mut variant: VARIANT = std::mem::zeroed();
-            variant.n1.n2_mut().vt = $type as u16;
+            (*variant.Anonymous.Anonymous).vt = VARENUM($type as u16);
             variant
         }
     };
@@ -22,7 +26,7 @@ macro_rules! variant {
     ( $type: expr, $field: ident, $val: expr ) => {
         unsafe {
             let mut variant: VARIANT = variant!($type);
-            *variant.n1.n2_mut().n3.$field() = $val;
+            (*variant.Anonymous.Anonymous).Anonymous.$field = $val;
             variant
         }
     };
@@ -30,7 +34,7 @@ macro_rules! variant {
     ( $type: expr, ($field: ident), $val: expr ) => {
         unsafe {
             let mut variant: VARIANT = variant!($type);
-            *variant.n1.$field() = $val;
+            variant.Anonymous.$field = $val;
             variant
         }
     };
@@ -38,12 +42,15 @@ macro_rules! variant {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Variant, VariantType};
+    use crate::{ToVariant, Variant, VariantType};
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
     use rust_decimal_macros::dec;
-    use widestring::U16CString;
-    use winapi::shared::wtypes::{CY, DECIMAL};
-    use winapi::um::oaidl::VARIANT;
+
+    use std::mem::ManuallyDrop;
+    use windows::core::BSTR;
+    use windows::Win32::Foundation::{CHAR, DECIMAL, DECIMAL_0, DECIMAL_0_0, DECIMAL_1};
+    use windows::Win32::System::Com::CY;
+    use windows::Win32::System::Com::{VARENUM, VARIANT};
 
     macro_rules! roundtrip
     {
@@ -64,61 +71,76 @@ mod tests {
     roundtrip!((VT_EMPTY), Variant::Empty);
     roundtrip!((VT_NULL), Variant::Null);
 
-    roundtrip!((VT_BOOL, boolVal_mut, !0i16), Variant::Bool(true));
+    roundtrip!((VT_BOOL, boolVal, !0i16), Variant::Bool(true));
 
-    roundtrip!((VT_I1, cVal_mut, 0x55), Variant::I8(0x55));
-    roundtrip!((VT_I2, iVal_mut, 0x55aa), Variant::I16(0x55aa));
-    roundtrip!((VT_I4, lVal_mut, 0x55aa55aa), Variant::I32(0x55aa55aa));
+    roundtrip!((VT_I1, cVal, CHAR(0x55)), Variant::I8(0x55));
+    roundtrip!((VT_I2, iVal, 0x55aa), Variant::I16(0x55aa));
+    roundtrip!((VT_I4, lVal, 0x55aa55aa), Variant::I32(0x55aa55aa));
     roundtrip!(
-        (VT_I8, llVal_mut, 0x55aa55aa55aa55aa),
+        (VT_I8, llVal, 0x55aa55aa55aa55aa),
         Variant::I64(0x55aa55aa55aa55aa)
     );
 
-    roundtrip!((VT_UI1, bVal_mut, 0x55), Variant::U8(0x55));
-    roundtrip!((VT_UI2, uiVal_mut, 0x55aa), Variant::U16(0x55aa));
-    roundtrip!((VT_UI4, ulVal_mut, 0x55aa55aa), Variant::U32(0x55aa55aa));
+    roundtrip!((VT_UI1, bVal, 0x55), Variant::U8(0x55));
+    roundtrip!((VT_UI2, uiVal, 0x55aa), Variant::U16(0x55aa));
+    roundtrip!((VT_UI4, ulVal, 0x55aa55aa), Variant::U32(0x55aa55aa));
     roundtrip!(
-        (VT_UI8, ullVal_mut, 0x55aa55aa55aa55aa),
+        (VT_UI8, ullVal, 0x55aa55aa55aa55aa),
         Variant::U64(0x55aa55aa55aa55aa)
     );
 
-    roundtrip!((VT_R4, fltVal_mut, 0.5f32), Variant::F32(0.5f32));
-    roundtrip!((VT_R8, dblVal_mut, 0.5f64), Variant::F64(0.5f64));
+    roundtrip!((VT_R4, fltVal, 0.5f32), Variant::F32(0.5f32));
+    roundtrip!((VT_R8, dblVal, 0.5f64), Variant::F64(0.5f64));
 
     roundtrip!(
-        (VT_CY, cyVal_mut, CY { int64: 123456 }),
+        (VT_CY, cyVal, CY { int64: 123456 }),
         Variant::Currency(dec!(12.3456).into())
     );
 
     roundtrip!(
         (
             VT_DECIMAL,
-            (decVal_mut),
+            (decVal),
             DECIMAL {
                 wReserved: VariantType::VT_DECIMAL as u16,
-                scale: 4,
-                sign: 0,
+                Anonymous1: DECIMAL_0 {
+                    Anonymous: DECIMAL_0_0 { scale: 4, sign: 0 }
+                },
                 Hi32: 0,
-                Lo64: 123456
+                Anonymous2: DECIMAL_1 { Lo64: 123456 }
             }
         ),
         Variant::Decimal(dec!(12.3456))
     );
 
     roundtrip!(
-        (VT_DATE, date_mut, 5.25),
+        (VT_DATE, date, 5.25),
         Variant::Date(NaiveDateTime::new(
-            NaiveDate::from_ymd(1900, 1, 4),
-            NaiveTime::from_hms(6, 0, 0)
+            NaiveDate::from_ymd_opt(1900, 1, 4).unwrap(),
+            NaiveTime::from_hms_opt(6, 0, 0).unwrap()
         ))
     );
 
     roundtrip!(
         (
             VT_BSTR,
-            bstrVal_mut,
-            U16CString::from_str_truncate("Hello, world!").into_raw()
+            bstrVal,
+            ManuallyDrop::new(BSTR::from("Hello, world!"))
         ),
-        Variant::String("Hello, world!".to_string())
+        Variant::String(BSTR::from("Hello, world!"))
     );
+
+    #[test]
+    fn main() {
+        let v1 = Variant::I32(123); // manual instanciation
+        let v2 = 123.to_variant(); // ToVariant trait
+        let v3 = 123.into(); // From / Into traits
+        assert_eq!(v1, v2);
+        assert_eq!(v1, v3);
+
+        let bstr: Variant = "Hello, world!".into();
+        let ptr: VARIANT = bstr.clone().try_into().unwrap(); // convert to COM VARIANT
+        let back: Variant = ptr.try_into().unwrap(); // convert back
+        assert_eq!(bstr, back);
+    }
 }

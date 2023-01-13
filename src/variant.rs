@@ -1,14 +1,20 @@
+//! Rust wrapper for the [`VARIANT`] type
+
 use crate::com_types::currency::{ComCurrency, Currency};
 use crate::com_types::date::ComDate;
 use crate::com_types::decimal::ComDecimal;
-use crate::com_types::string::ComString;
+//use crate::com_types::string::ComString;
 use crate::{ComBool, PtrWrapper};
 use chrono::NaiveDateTime;
 use enumn::N;
 use rust_decimal::Decimal;
-use winapi::shared::ntdef::HRESULT;
-use winapi::um::oaidl::{IDispatch, VARIANT};
-use winapi::um::unknwnbase::IUnknown;
+
+use paste::paste;
+use windows::core::IUnknown;
+use windows::core::HRESULT;
+use windows::core::{BSTR, PSTR};
+use windows::Win32::System::Com::IDispatch;
+use windows::Win32::System::Com::VARIANT;
 
 macro_rules! variant_enum {
     (@impl $name:ident) => {};
@@ -17,7 +23,17 @@ macro_rules! variant_enum {
 
     (@impl $name:ident (@@ $type:ty)) => {};
 
-    (@impl $name:ident ($type:ty)) => {
+    (@impl $name:ident (Option<$type:ty>)) => {
+        impl ToVariant for $type {
+            fn to_variant(self) -> Variant {
+                Variant::$name(Some(self))
+            }
+        }
+
+        variant_enum!(@impl @opt $name (Option<$type>));
+    };
+
+    (@impl $(@opt)? $name:ident ($type:ty)) => {
         impl ToVariant for $type {
             fn to_variant(self) -> Variant {
                 Variant::$name(self)
@@ -25,11 +41,43 @@ macro_rules! variant_enum {
         }
     };
 
-    (@enum $($name:ident $(( $(@@)? $( $typ4e:ty )+ ) )?),* $(,)?) => {
+    (@match $self:ident, $name:ident, $type:ty) => {
+        match $self {
+            Self::$name(v) => Ok(v),
+            _ => Err($self),
+        }
+    };
+
+    (@match $self:ident, $name:ident, ) => {
+        match $self {
+            Self::$name => Ok(()),
+            _ => Err($self),
+        }
+    };
+
+    (@enum $($name:ident $(( $(@@)? $( $type:ty )+ ) )?),* $(,)?) => {
         #[derive(Debug, PartialEq)]
         #[allow(clippy::enum_variant_names)]
         pub enum Variant {
-            $($name $(($($typ4e)+))?),*
+            $($name $(($($type)+))?),*
+        }
+
+        paste! {
+            #[allow(unused_parens)]
+            impl Variant {
+                $(
+                    pub fn [< try_ $name:lower >](self) -> Result<( $($( $type )+)? ), Variant> {
+                        variant_enum!(@match self, $name, $($( $type )+)?)
+                    }
+
+                    pub fn [< expect_ $name:lower >](self) -> ( $($( $type )+)? ) {
+                        match self.[< try_ $name:lower >]() {
+                            Ok(v) => v,
+                            Err(self_) => panic!("Expected variant type {} but got {:?}", stringify!($name), self_),
+                        }
+                    }
+                )*
+            }
         }
     };
 
@@ -48,7 +96,7 @@ variant_enum! {
     BoolRef(&'static mut ComBool),
 
     I8(i8),
-    I8Ref(&'static mut i8),
+    I8Ref(PSTR),
     I16(i16),
     I16Ref(&'static mut i16),
     I32(i32),
@@ -79,11 +127,11 @@ variant_enum! {
     Date(NaiveDateTime),
     DateRef(&'static mut ComDate),
 
-    String(String),
-    StringRef(&'static mut ComString),
+    String(BSTR),
+    StringRef(&'static mut BSTR),
 
-    Dispatch(PtrWrapper<IDispatch>),
-    Unknown(PtrWrapper<IUnknown>),
+    Dispatch(Option<IDispatch>),
+    Unknown(Option<IUnknown>),
 
     Error(@@ HRESULT),
     ErrorRef(&'static mut HRESULT),
@@ -91,6 +139,40 @@ variant_enum! {
     VariantRef(PtrWrapper<VARIANT>),
 
     //Record(),
+}
+
+impl Clone for Variant {
+    fn clone(&self) -> Self {
+        use Variant::*;
+        match self {
+            BoolRef(_) | I8Ref(_) | I16Ref(_) | I32Ref(_) | I64Ref(_) | U8Ref(_) | U16Ref(_)
+            | U32Ref(_) | U64Ref(_) | F32Ref(_) | F64Ref(_) | CurrencyRef(_) | DecimalRef(_)
+            | DateRef(_) | StringRef(_) | ErrorRef(_) | VariantRef(_) => {
+                panic!("Cannot clone a reference variant")
+            }
+
+            Empty => Empty,
+            Null => Null,
+            Bool(x) => Bool(*x),
+            I8(x) => I8(*x),
+            I16(x) => I16(*x),
+            I32(x) => I32(*x),
+            I64(x) => I64(*x),
+            U8(x) => U8(*x),
+            U16(x) => U16(*x),
+            U32(x) => U32(*x),
+            U64(x) => U64(*x),
+            F32(x) => F32(*x),
+            F64(x) => F64(*x),
+            Currency(x) => Currency(*x),
+            Decimal(x) => Decimal(*x),
+            Date(x) => Date(*x),
+            String(x) => String(x.clone()),
+            Dispatch(x) => Dispatch(x.clone()),
+            Unknown(x) => Unknown(x.clone()),
+            Error(x) => Error(*x),
+        }
+    }
 }
 
 pub trait ToVariant {
@@ -105,7 +187,13 @@ impl ToVariant for () {
 
 impl ToVariant for &str {
     fn to_variant(self) -> Variant {
-        Variant::String(String::from(self))
+        Variant::String(BSTR::from(self))
+    }
+}
+
+impl ToVariant for String {
+    fn to_variant(self) -> Variant {
+        Variant::String(BSTR::from(self))
     }
 }
 

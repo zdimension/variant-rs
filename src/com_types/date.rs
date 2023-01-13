@@ -1,7 +1,10 @@
+//! Wrapper type for COM dates (stored as [`f64`])
+
 use chrono::{Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use std::fmt::{Debug, Display};
 use std::ops::Sub;
 
+/// Transparent wrapper around a COM date stored as an [`f64`]
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct ComDate(pub f64);
 
@@ -27,8 +30,8 @@ impl Debug for ComDate {
 macro_rules! com_epoch {
     () => {
         NaiveDateTime::new(
-            NaiveDate::from_ymd(1899, 12, 30),
-            NaiveTime::from_hms(0, 0, 0),
+            NaiveDate::from_ymd_opt(1899, 12, 30).unwrap(),
+            NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
         )
     };
 }

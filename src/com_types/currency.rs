@@ -1,10 +1,14 @@
+//! Wrapper type for [`CY`]
+
 use rust_decimal::Decimal;
 use std::fmt::{Debug, Display};
-use winapi::shared::wtypes::CY;
+use windows::Win32::System::Com::CY;
 
+/// Transparent wrapper around a [`CY`] value stored as an [`i64`]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd)]
 pub struct ComCurrency(pub i64);
 
+/// Wrapper around COM [`CY`] using [`Decimal`].
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Debug)]
 pub struct Currency(pub Decimal);
 
@@ -66,7 +70,7 @@ impl From<ComCurrency> for CY {
 
 impl From<CY> for ComCurrency {
     fn from(cy: CY) -> Self {
-        ComCurrency(cy.int64)
+        ComCurrency(unsafe { cy.int64 })
     }
 }
 

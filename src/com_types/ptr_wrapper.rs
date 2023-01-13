@@ -1,3 +1,5 @@
+//! Wrapper type for a non-null pointer to non-owned mutable data
+
 use std::fmt::Debug;
 
 pub struct PtrWrapper<T: 'static>(pub &'static mut T);

@@ -1,5 +1,11 @@
+//! Wrapper type for [`BOOL`]
+
+#![allow(unused_imports)]
+use windows::Win32::Foundation::BOOL;
+
 use enumn::N;
 
+/// Enum equivalent to COM [`BOOL`]. False is 0 and True is all ones (-1)
 #[derive(N, Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(i16)]
 pub enum ComBool {
