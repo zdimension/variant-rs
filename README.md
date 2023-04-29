@@ -77,7 +77,7 @@ Safe wrapper around COM interface pointers.
 Add this to your `Cargo.toml`:
 ```toml
 [dependencies]
-variant-rs = "0.3.0"
+variant-rs = "0.3.1"
 ```
 
 ## License
