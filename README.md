@@ -17,7 +17,7 @@ use variant_rs::*;
 
 fn main() {
     let v1 = Variant::I32(123); // manual instanciation
-    let v2 = 123.to_variant(); // ToVariant trait
+    let v2 = 123i32.to_variant(); // ToVariant trait
     let v3 = 123.into(); // From / Into traits
     assert_eq!(v1, v2);
     assert_eq!(v1, v3);

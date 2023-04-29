@@ -8,8 +8,27 @@ use windows::Win32::Foundation::{DECIMAL, DECIMAL_0, DECIMAL_0_0, DECIMAL_1};
 const DECIMAL_NEG: u8 = 0x80;
 
 /// Transparent wrapper around a [`DECIMAL`] value
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone)]
 pub struct ComDecimal(pub DECIMAL);
+
+// seriously guys, why did you remove impl PartialEq for DECIMAL??
+// it was there, it worked, and now it's gone
+fn dec_to_bytes(dec: &DECIMAL) -> &[u8] {
+    unsafe {
+        std::slice::from_raw_parts(
+            dec as *const DECIMAL as *const u8,
+            std::mem::size_of::<DECIMAL>(),
+        )
+    }
+}
+
+impl PartialEq for ComDecimal {
+    fn eq(&self, other: &Self) -> bool {
+        dec_to_bytes(&self.0) == dec_to_bytes(&other.0)
+    }
+}
+
+impl Eq for ComDecimal {}
 
 impl Display for ComDecimal {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

@@ -3,7 +3,7 @@
 
 use crate::com_types::bool::ComBool;
 use crate::com_types::ptr_wrapper::PtrWrapper;
-use crate::variant::*;
+pub use crate::variant::*;
 
 pub use windows::Win32::System::Com::{VARENUM, VARIANT};
 
@@ -48,7 +48,7 @@ mod tests {
 
     use std::mem::ManuallyDrop;
     use windows::core::BSTR;
-    use windows::Win32::Foundation::{CHAR, DECIMAL, DECIMAL_0, DECIMAL_0_0, DECIMAL_1};
+    use windows::Win32::Foundation::{DECIMAL, DECIMAL_0, DECIMAL_0_0, DECIMAL_1, VARIANT_BOOL};
     use windows::Win32::System::Com::CY;
     use windows::Win32::System::Com::{VARENUM, VARIANT};
 
@@ -71,9 +71,9 @@ mod tests {
     roundtrip!((VT_EMPTY), Variant::Empty);
     roundtrip!((VT_NULL), Variant::Null);
 
-    roundtrip!((VT_BOOL, boolVal, !0i16), Variant::Bool(true));
+    roundtrip!((VT_BOOL, boolVal, VARIANT_BOOL(!0i16)), Variant::Bool(true));
 
-    roundtrip!((VT_I1, cVal, CHAR(0x55)), Variant::I8(0x55));
+    roundtrip!((VT_I1, cVal, 0x55), Variant::I8(0x55));
     roundtrip!((VT_I2, iVal, 0x55aa), Variant::I16(0x55aa));
     roundtrip!((VT_I4, lVal, 0x55aa55aa), Variant::I32(0x55aa55aa));
     roundtrip!(

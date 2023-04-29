@@ -4,7 +4,7 @@ use crate::convert::VariantConversionError;
 use crate::variant::Variant;
 use thiserror::Error;
 use widestring::U16CString;
-use windows::core::{Error as WinError, GUID, PWSTR};
+use windows::core::{Error as WinError, GUID, PCWSTR};
 use windows::Win32::Foundation::{DISP_E_EXCEPTION, DISP_E_PARAMNOTFOUND, DISP_E_TYPEMISMATCH};
 use windows::Win32::System::Com::{
     IDispatch, DISPATCH_FLAGS, DISPATCH_METHOD, DISPATCH_PROPERTYGET, DISPATCH_PROPERTYPUT,
@@ -50,12 +50,14 @@ fn invoke(
     flags: DISPATCH_FLAGS,
 ) -> Result<Variant, IDispatchError> {
     let mut name = U16CString::from_str(name).map_err(IDispatchError::StringConversion)?;
-    let id = unsafe {
+    let mut id = 0i32;
+    unsafe {
         obj.GetIDsOfNames(
             &GUID::default(),
-            &PWSTR(name.as_mut_ptr()),
+            &PCWSTR(name.as_mut_ptr()),
             1,
             LOCALE_USER_DEFAULT,
+            (&mut id) as *mut i32,
         )
     }
     .map_err(IDispatchError::GenericWin32)?;
@@ -128,7 +130,7 @@ macro_rules! put {
 /// # Example
 /// ```
 /// use variant_rs::call;
-/// let x = call!(com_object, SomeMethod, 10, "hello")?;
+/// let x = call!(com_object, SomeMethod(10, "hello"))?;
 /// ```
 #[macro_export]
 macro_rules! call {

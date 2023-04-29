@@ -3,7 +3,6 @@
 use crate::com_types::currency::ComCurrency;
 use crate::com_types::date::ComDate;
 use crate::com_types::decimal::ComDecimal;
-//use crate::com_types::string::ComString;
 use crate::Variant::*;
 use crate::VariantType::*;
 use crate::{variant, ComBool, PtrWrapper, Variant, VariantType, VT_BYREF};
@@ -13,7 +12,7 @@ use std::convert::Infallible;
 use std::mem::ManuallyDrop;
 use thiserror::Error;
 use windows::core::HRESULT;
-use windows::Win32::Foundation::CHAR;
+use windows::Win32::Foundation::VARIANT_BOOL;
 use windows::Win32::System::Com::{VARENUM, VARIANT};
 
 #[derive(Debug, PartialEq, Eq, Error)]
@@ -127,9 +126,9 @@ impl TryInto<Variant> for VARIANT {
                 VT_EMPTY : (Empty, /),
                 VT_NULL : (Null, /),
 
-                VT_BOOL : (Bool => boolVal != 0, BoolRef => pboolVal),
+                VT_BOOL : (Bool => (Ok(val.Anonymous.Anonymous.boolVal.0 != 0)), BoolRef => (Ok(&mut *(val.Anonymous.Anonymous.pboolVal as *mut ComBool)))),
 
-                VT_I1 : (I8 => (Ok(val.Anonymous.Anonymous.cVal.0 as i8)), I8Ref => (Ok(val.Anonymous.Anonymous.pcVal))),
+                VT_I1 : (I8 => (Ok(val.Anonymous.Anonymous.cVal as i8)), I8Ref => (Ok(val.Anonymous.Anonymous.pcVal))),
                 VT_I2 : (I16 => iVal, I16Ref => piVal),
                 VT_I4 : (I32 => lVal, I32Ref => plVal),
                 VT_I8 : (I64 => llVal, I64Ref => pllVal),
@@ -187,10 +186,10 @@ impl TryInto<VARIANT> for Variant {
             Empty => Ok(variant!(VT_EMPTY)),
             Null => Ok(variant!(VT_NULL)),
 
-            Bool(b) => Ok(variant!(VT_BOOL, boolVal, ComBool::from(b) as i16)),
-            BoolRef(b) => Ok(variant!(VT_BOOL, pboolVal, b as *mut ComBool as *mut i16)),
+            Bool(b) => Ok(variant!(VT_BOOL, boolVal, VARIANT_BOOL(ComBool::from(b) as i16))),
+            BoolRef(b) => Ok(variant!(VT_BOOL, pboolVal, b as *mut ComBool as *mut VARIANT_BOOL)),
 
-            I8(i) => Ok(variant!(VT_I1, cVal, CHAR(i as u8))),
+            I8(i) => Ok(variant!(VT_I1, cVal, i as u8)),
             I8Ref(i) => Ok(variant!(VT_I1.byref(), pcVal, i)),
             I16(i) => Ok(variant!(VT_I2, iVal, i)),
             I16Ref(i) => Ok(variant!(VT_I2.byref(), piVal, i)),
