@@ -13,7 +13,7 @@ use std::mem::ManuallyDrop;
 use thiserror::Error;
 use windows::core::HRESULT;
 use windows::Win32::Foundation::VARIANT_BOOL;
-use windows::Win32::System::Com::{VARENUM, VARIANT};
+use windows::Win32::System::Variant::{VARENUM, VARIANT};
 
 #[derive(Debug, PartialEq, Eq, Error)]
 pub enum VariantConversionError {
@@ -186,8 +186,16 @@ impl TryInto<VARIANT> for Variant {
             Empty => Ok(variant!(VT_EMPTY)),
             Null => Ok(variant!(VT_NULL)),
 
-            Bool(b) => Ok(variant!(VT_BOOL, boolVal, VARIANT_BOOL(ComBool::from(b) as i16))),
-            BoolRef(b) => Ok(variant!(VT_BOOL, pboolVal, b as *mut ComBool as *mut VARIANT_BOOL)),
+            Bool(b) => Ok(variant!(
+                VT_BOOL,
+                boolVal,
+                VARIANT_BOOL(ComBool::from(b) as i16)
+            )),
+            BoolRef(b) => Ok(variant!(
+                VT_BOOL,
+                pboolVal,
+                b as *mut ComBool as *mut VARIANT_BOOL
+            )),
 
             I8(i) => Ok(variant!(VT_I1, cVal, i as u8)),
             I8Ref(i) => Ok(variant!(VT_I1.byref(), pcVal, i)),

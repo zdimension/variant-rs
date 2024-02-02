@@ -8,9 +8,10 @@ use windows::core::{Error as WinError, GUID, PCWSTR};
 use windows::Win32::Foundation::{DISP_E_EXCEPTION, DISP_E_PARAMNOTFOUND, DISP_E_TYPEMISMATCH};
 use windows::Win32::System::Com::{
     IDispatch, DISPATCH_FLAGS, DISPATCH_METHOD, DISPATCH_PROPERTYGET, DISPATCH_PROPERTYPUT,
-    DISPPARAMS, EXCEPINFO, VARIANT,
+    DISPPARAMS, EXCEPINFO,
 };
 use windows::Win32::System::Ole::DISPID_PROPERTYPUT;
+use windows::Win32::System::Variant::VARIANT;
 
 pub trait IDispatchExt {
     fn get(&self, name: &str) -> Result<Variant, IDispatchError>;

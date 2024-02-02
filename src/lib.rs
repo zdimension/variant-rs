@@ -5,7 +5,7 @@ use crate::com_types::bool::ComBool;
 use crate::com_types::ptr_wrapper::PtrWrapper;
 pub use crate::variant::*;
 
-pub use windows::Win32::System::Com::{VARENUM, VARIANT};
+pub use windows::Win32::System::Variant::{VARENUM, VARIANT};
 
 pub mod com_types;
 pub mod convert;
@@ -50,7 +50,7 @@ mod tests {
     use windows::core::BSTR;
     use windows::Win32::Foundation::{DECIMAL, DECIMAL_0, DECIMAL_0_0, DECIMAL_1, VARIANT_BOOL};
     use windows::Win32::System::Com::CY;
-    use windows::Win32::System::Com::{VARENUM, VARIANT};
+    use windows::Win32::System::Variant::{VARENUM, VARIANT};
 
     macro_rules! roundtrip
     {

@@ -14,7 +14,7 @@ use windows::core::IUnknown;
 use windows::core::HRESULT;
 use windows::core::{BSTR, PSTR};
 use windows::Win32::System::Com::IDispatch;
-use windows::Win32::System::Com::VARIANT;
+use windows::Win32::System::Variant::VARIANT;
 
 macro_rules! variant_enum {
     (@impl $name:ident) => {};

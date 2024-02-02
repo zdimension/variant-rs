@@ -19,8 +19,8 @@ impl From<&mut i16> for &'static mut ComBool {
     }
 }
 
-impl From<&VARIANT_BOOL> for &'static mut ComBool {
-    fn from(value: &VARIANT_BOOL) -> &'static mut ComBool {
+impl From<&mut VARIANT_BOOL> for &'static mut ComBool {
+    fn from(value: &mut VARIANT_BOOL) -> &'static mut ComBool {
         unsafe { &mut *(value as *const VARIANT_BOOL as *mut ComBool) }
     }
 }
